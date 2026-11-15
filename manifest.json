@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "LLM Side Panel",
+  "version": "0.3.0",
+  "description": "Free-to-use side panel: any LLM (including on-device Chrome AI), any page, and a prompt library imported from Google Keep, Drive, Docs and SKILL.md collections.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Open LLM Side Panel"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/panel.html"
+  },
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "unlimitedStorage",
+    "scripting",
+    "activeTab",
+    "tabs",
+    "contextMenus",
+    "clipboardWrite",
+    "identity"
+  ],
+  "host_permissions": ["<all_urls>"]
+}

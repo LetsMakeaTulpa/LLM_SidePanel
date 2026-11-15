@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LLM Side Panel</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark"></span><span class="brand-name">Side Panel</span></div>
+        <div class="topbar-actions">
+          <button id="btn-model" class="pill" title="Switch provider and model">
+            <span id="model-label">Model</span>
+          </button>
+          <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+        </div>
+      </header>
+
+      <nav class="tabs" role="tablist">
+        <button class="tab is-active" data-tab="chat" role="tab">Chat</button>
+        <button class="tab" data-tab="prompts" role="tab">Prompts<span id="prompt-count" class="count">0</span></button>
+        <button class="tab" data-tab="page" role="tab">Page</button>
+      </nav>
+
+      <main class="panels">
+        <section class="panel is-active" id="tab-chat" data-panel="chat">
+          <div class="chat-scroll" id="chat-scroll">
+            <div class="chat-empty" id="chat-empty">
+              <p class="chat-empty-title">Ask about the page you are on</p>
+              <p class="chat-empty-sub">Capture the page from the Page tab, or deploy a prompt from your library.</p>
+              <div class="quick-actions">
+                <button class="ghost" data-quick="capture">Capture this page</button>
+                <button class="ghost" data-quick="library">Browse prompts</button>
+              </div>
+            </div>
+            <div class="messages" id="messages"></div>
+          </div>
+          <div class="context-bar hidden" id="context-bar"></div>
+          <div class="composer">
+            <textarea id="input" rows="1" placeholder="Ask anything, or paste text to work with…"></textarea>
+            <div class="composer-row">
+              <button id="btn-attach" class="icon-btn" title="Capture current page">⇩</button>
+              <span class="composer-hint">Enter to send · Shift+Enter for newline</span>
+              <button id="btn-stop" class="ghost hidden">Stop</button>
+              <button id="btn-send" class="primary">Send</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="tab-prompts" data-panel="prompts">
+          <div class="lib-toolbar">
+            <input id="prompt-search" type="search" placeholder="Search prompts, tags, text…" autocomplete="off" />
+            <button id="btn-new-prompt" class="icon-btn" title="New prompt" aria-label="New prompt">＋</button>
+            <button id="btn-import" class="icon-btn" title="Import prompts" aria-label="Import prompts">⇪</button>
+            <button id="btn-export" class="icon-btn" title="Export library" aria-label="Export library">⇩</button>
+          </div>
+          <div class="chips" id="lib-filters"></div>
+          <div class="prompt-list" id="prompt-list"></div>
+          <div class="lib-footer" id="lib-footer"></div>
+        </section>
+
+        <section class="panel" id="tab-page" data-panel="page">
+          <div class="page-card">
+            <div class="page-status" id="page-status">Reading the active tab…</div>
+          </div>
+          <div class="page-actions">
+            <button id="btn-capture-page" class="primary">Capture page</button>
+            <button id="btn-capture-selection" class="ghost">Capture selection</button>
+          </div>
+          <div class="page-block">
+            <div class="section-label">Other open tabs</div>
+            <div id="page-tab-list" class="tab-list"></div>
+          </div>
+          <div class="page-block hidden" id="page-preview-block">
+            <div class="section-label">Captured context <span id="preview-meta" class="muted"></span></div>
+            <pre id="page-preview" class="page-preview"></pre>
+          </div>
+          <p class="hint">Works on articles, docs, dashboards, forums, social feeds and app pages. PDFs, chrome:// pages and the Web Store block script injection — select text and use Capture selection there.</p>
+        </section>
+      </main>
+
+      <div id="modal-root"></div>
+      <div id="toast" class="toast hidden" role="status"></div>
+      <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
+
+      <aside id="settings-drawer" class="drawer hidden" aria-label="Settings">
+        <div class="drawer-head">
+          <h2>Settings</h2>
+          <button id="btn-close-settings" class="icon-btn" aria-label="Close settings">✕</button>
+        </div>
+        <div class="drawer-body">
+          <label class="field">
+            <span>Provider</span>
+            <select id="setting-provider"></select>
+          </label>
+          <p class="hint" id="provider-hint"></p>
+          <label class="field">
+            <span>Model</span>
+            <input id="setting-model" list="model-suggestions" placeholder="model id" autocomplete="off" />
+            <datalist id="model-suggestions"></datalist>
+          </label>
+          <label class="field" id="field-key">
+            <span>API key</span>
+            <input id="setting-key" type="password" placeholder="stored locally" autocomplete="off" />
+            <small class="muted" id="key-help"></small>
+          </label>
+          <div class="row">
+            <button id="btn-forget-key" class="ghost">Forget saved key</button>
+          </div>
+          <label class="field hidden" id="field-base">
+            <span>Base URL</span>
+            <input id="setting-base" placeholder="https://your-endpoint/v1" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Temperature <b id="temp-value">0.7</b></span>
+            <input id="setting-temp" type="range" min="0" max="1.5" step="0.1" />
+          </label>
+          <label class="field">
+            <span>System prompt</span>
+            <textarea id="setting-system" rows="3"></textarea>
+          </label>
+          <label class="field">
+            <span>Page context character limit</span>
+            <input id="setting-context-limit" type="number" min="2000" max="120000" step="1000" />
+          </label>
+
+          <div class="drawer-section">
+            <div class="section-label">Free options</div>
+            <p class="hint">
+              Nothing here needs an account or a subscription. The built-in model and local servers need no key at all;
+              free tiers need a key but no payment.
+            </p>
+            <div class="row"><button id="btn-free-options" class="ghost">Free ways to run this</button></div>
+          </div>
+
+          <div class="drawer-section">
+            <div class="section-label">Google</div>
+            <p class="hint">
+              Keep imports use a Takeout zip. Docs and Drive links import with your browser session. Connecting Drive
+              (optional OAuth client) lets you browse and pull your own files.
+            </p>
+            <label class="field">
+              <span>OAuth client ID</span>
+              <input id="setting-google-client" placeholder="…apps.googleusercontent.com" autocomplete="off" />
+            </label>
+            <div class="row">
+              <button id="btn-connect-drive" class="ghost">Connect Drive</button>
+              <button id="btn-disconnect-drive" class="ghost">Disconnect</button>
+            </div>
+            <small class="muted">Authorized redirect URI: <code id="drive-redirect"></code></small>
+          </div>
+
+          <div class="drawer-section">
+            <div class="section-label">Library</div>
+            <div class="row">
+              <button id="btn-load-starter" class="ghost">Add starter pack</button>
+              <button id="btn-export-all" class="ghost">Export all</button>
+              <button id="btn-clear-library" class="ghost danger">Clear library</button>
+            </div>
+            <div class="row">
+              <button id="btn-clear-chat" class="ghost">Clear chat</button>
+            </div>
+            <p class="hint" id="library-stats"></p>
+          </div>
+          <p class="drawer-foot">Keys stay in this browser profile and are sent only to the provider you select.</p>
+        </div>
+      </aside>
+    </div>
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>
