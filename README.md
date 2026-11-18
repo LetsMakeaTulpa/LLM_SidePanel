@@ -6,7 +6,7 @@ Free by default: it runs on Chrome's on-device model with no key and no account,
 
 No build step, no server, no dependencies. Load the folder and it runs.
 
-> **Also in this repo:** a server-side investigation agent (`POST /api/investigate`, SSE) with a strict evidence contract, SQLite fetch cache, six tools, Wayback snapshots, a 3-call LLM semaphore and a 20-question eval harness. See [AGENT.md](AGENT.md). It is a separate Next.js app; the extension itself still has no build step.
+> **Also in this repo:** a server-side investigation agent (`POST /api/investigate`, SSE) with a strict evidence contract, SQLite fetch cache, six tools, Wayback snapshots, a 3-call LLM semaphore and a 20-question eval harness. See [AGENT.md](AGENT.md). It is a separate Next.js app and needs **Node 22.5 or newer** (pinned in [`.nvmrc`](.nvmrc)) because it uses the built-in `node:sqlite`; the extension itself still has no build step and needs no Node.
 
 ```
 manifest.json            MV3 manifest: side panel, context menus, storage
@@ -209,6 +209,20 @@ npm run check # syntax-check every source file
 ```
 
 After editing, reload the extension on `chrome://extensions` and reopen the panel. There is no bundler; the side panel loads ES modules directly.
+
+### Server-side agent
+
+The agent in `app/`, `lib/` and `eval/` is a Next.js app and requires **Node 22.5 or newer**. It uses the built-in `node:sqlite` module, which does not exist on Node 20 — there the agent tests fail with `Cannot find module 'node:sqlite'` and `npm run dev` breaks on the first cache call. The version is pinned in [`.nvmrc`](.nvmrc) and declared under `engines` in `package.json`.
+
+```bash
+nvm use            # reads .nvmrc (Node 22)
+npm ci
+npm run dev        # http://localhost:3000
+npm run test:agent
+npm run eval:dry   # validates the 20 eval questions, no keys or network
+```
+
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the extension checks, typecheck, agent tests and eval dry run on Node 22 for every push to `main` and every pull request.
 
 Known limitations: the built-in model needs Chrome 138+ desktop hardware (elsewhere use Ollama or a free-tier key), there is no PDF text extraction, Keep notes must come through Takeout/HTML/JSON, Google Docs need a signed-in session or link sharing (or the Drive client), and only text-like Drive files can be imported.
 

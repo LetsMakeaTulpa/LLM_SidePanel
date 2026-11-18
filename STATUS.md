@@ -18,7 +18,7 @@ This is completion **as a shippable product**, not lines written. The code for e
 | Agent preview UI | 85% | Builds and streams; not interacted with in a browser |
 | Eval harness | 85% | 20 questions and scoring tested; **no baseline score exists** |
 | Documentation | 90% | README, AGENT, ARCHITECTURE, this file |
-| Distribution and CI | 40% | No CI, release, store listing, screenshots, or version tags |
+| Distribution and CI | 50% | GitHub Actions CI added; no release, store listing, screenshots, or version tags |
 | Independent verification | 60% | Strong unit/build coverage; weak browser and live-service coverage |
 
 Rough weighting: 30% extension, 30% agent, 10% imports, 10% eval, 5% docs, 5% distribution, 10% verification → **81%**.
@@ -51,6 +51,7 @@ Passing now:
 - Agent tests — 14/14 on Node 22.23.5 (12 on Node 20 because `node:sqlite` does not exist there).
 - `eval/run.ts --dry-run` — 20 valid questions, 20 unique IDs.
 - `npx next build` — succeeds; `ƒ /api/investigate` route present.
+- CI — `.github/workflows/ci.yml` runs the four checks above on Node 22 (`.nvmrc`, `engines.node >=22.5.0`); the same commands pass locally.
 - Earlier live checks: SSE stream without keys produced status/plan/gaps/no-evidence result and `done`; invalid body returned 400; a real GitHub collection imported 11 prompts from 2 files through the archive fallback; zip and raw-markdown URLs parsed.
 
 Not verified:
@@ -70,5 +71,5 @@ The default `node` on this machine is **v20.20.0**, which cannot load `node:sqli
 1. Load the extension in Chrome, click through chat, capture, library, each importer, and the Skills URL preview.
 2. Add `FEATHERLESS_API_KEY` and `SEARXNG_URL`, run `npm run eval`, record the baseline, then tune prompts against it.
 3. Decide the agent's deployment/auth story; the route currently has neither.
-4. Add CI (extension checks, typecheck, agent tests, eval dry run) and a version tag.
+4. Add a version tag once CI is green on `main`.
 5. Verify Google Drive with a real OAuth client and a test document.

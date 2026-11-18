@@ -3,6 +3,9 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "description": "Manifest V3 side panel extension: any LLM, any page, and a prompt library imported from Google Keep, Drive and Docs.",
   "scripts": {
     "test": "node tests/run.mjs",
