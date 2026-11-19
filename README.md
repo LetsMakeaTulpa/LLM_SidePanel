@@ -212,7 +212,7 @@ After editing, reload the extension on `chrome://extensions` and reopen the pane
 
 ### Server-side agent
 
-The agent in `app/`, `lib/` and `eval/` is a Next.js app and requires **Node 22.5 or newer**. It uses the built-in `node:sqlite` module, which does not exist on Node 20 — there the agent tests fail with `Cannot find module 'node:sqlite'` and `npm run dev` breaks on the first cache call. The version is pinned in [`.nvmrc`](.nvmrc) and declared under `engines` in `package.json`.
+The agent in `app/`, `lib/` and `eval/` is a Next.js app and requires **Node 22.5 or newer**. It uses the built-in `node:sqlite` module, which does not exist on Node 20 — there the agent tests fail with `Cannot find module 'node:sqlite'` and `npm run dev` breaks on the first cache call. The version is pinned in [`.nvmrc`](.nvmrc) and declared under `engines` in `package.json` (`npm` only warns about that field). On an older Node the server checks `process.version` at startup and exits with the requirement and these steps instead of failing later with `Cannot find module 'node:sqlite'`.
 
 ```bash
 nvm use            # reads .nvmrc (Node 22)
@@ -222,7 +222,7 @@ npm run test:agent
 npm run eval:dry   # validates the 20 eval questions, no keys or network
 ```
 
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the extension checks, typecheck, agent tests and eval dry run on Node 22 for every push to `main` and every pull request.
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the extension checks, typecheck, `next build`, agent tests and eval dry run on Node 22 for every push to `main` and every pull request.
 
 Known limitations: the built-in model needs Chrome 138+ desktop hardware (elsewhere use Ollama or a free-tier key), there is no PDF text extraction, Keep notes must come through Takeout/HTML/JSON, Google Docs need a signed-in session or link sharing (or the Drive client), and only text-like Drive files can be imported.
 

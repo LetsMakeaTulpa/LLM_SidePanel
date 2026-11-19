@@ -51,7 +51,7 @@ Passing now:
 - Agent tests — 14/14 on Node 22.23.5 (12 on Node 20 because `node:sqlite` does not exist there).
 - `eval/run.ts --dry-run` — 20 valid questions, 20 unique IDs.
 - `npx next build` — succeeds; `ƒ /api/investigate` route present.
-- CI — `.github/workflows/ci.yml` runs the four checks above on Node 22 (`.nvmrc`, `engines.node >=22.5.0`); the same commands pass locally.
+- CI — `.github/workflows/ci.yml` runs the checks above, including `next build`, on Node 22 (`.nvmrc`, `engines.node >=22.5.0`); the same commands pass locally.
 - Earlier live checks: SSE stream without keys produced status/plan/gaps/no-evidence result and `done`; invalid body returned 400; a real GitHub collection imported 11 prompts from 2 files through the archive fallback; zip and raw-markdown URLs parsed.
 
 Not verified:
