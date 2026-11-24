@@ -124,7 +124,7 @@ EVAL_MIN_COMPOSITE=0.7 npm run eval   # fail the run below a threshold
 
 ## Run
 
-Requires Node 22.5+ (`node:sqlite`).
+Requires Node 22.13+ (`node:sqlite` is behind `--experimental-sqlite` before 22.13.0, and absent before 22.5.0). The `test:agent`/`eval` pre-check compares the version and then imports `node:sqlite`, so a runtime in the flagged window is refused as well. CI runs `test:agent` and `eval:dry` on 22.13.0, the latest 22.x and 26.
 
 ```bash
 npm install

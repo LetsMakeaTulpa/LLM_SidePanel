@@ -73,7 +73,7 @@ JSON (title, body, tags, collection only) and markdown; single prompt download a
 
 ## Deliverable B — the investigation agent
 
-Next.js 16 App Router, TypeScript strict, Zod 4, Node 22.5+ (`node:sqlite`). Build the eval harness before any UI.
+Next.js 16 App Router, TypeScript strict, Zod 4, Node 22.13+ (`node:sqlite`). Build the eval harness before any UI.
 
 ### Evidence contract
 

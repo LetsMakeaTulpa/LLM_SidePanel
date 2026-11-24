@@ -4,15 +4,18 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.13.0"
   },
   "description": "Manifest V3 side panel extension: any LLM, any page, and a prompt library imported from Google Keep, Drive and Docs.",
   "scripts": {
     "test": "node tests/run.mjs",
     "check": "node --check background.js && node --check src/lib/store.js && node --check src/lib/chrome-ai.js && node --check src/lib/providers.js && node --check src/lib/extract.js && node --check src/lib/prompts.js && node --check src/lib/import/zip.js && node --check src/lib/import/html.js && node --check src/lib/import/keep.js && node --check src/lib/import/gdocs.js && node --check src/lib/import/files.js && node --check src/lib/import/remote.js && node --check src/prompts/builtin.js && node --check src/sidepanel/state.js && node --check src/sidepanel/ui.js && node --check src/sidepanel/library.js && node --check src/sidepanel/panel.js",
     "typecheck": "tsc --noEmit",
-    "test:agent": "tsx --test eval/score.test.ts lib/cache/db.test.ts",
+    "pretest:agent": "node scripts/require-node.mjs",
+    "test:agent": "tsx --test eval/score.test.ts lib/cache/db.test.ts lib/runtime.test.ts lib/agent/loop.test.ts",
+    "preeval": "node scripts/require-node.mjs",
     "eval": "tsx eval/run.ts",
+    "preeval:dry": "node scripts/require-node.mjs",
     "eval:dry": "tsx eval/run.ts --dry-run",
     "dev": "next dev",
     "build": "next build",

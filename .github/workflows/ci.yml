@@ -21,7 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 22
+      - name: Set up Node from .nvmrc
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -43,6 +43,40 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Agent tests
+        run: npm run test:agent
+
+      - name: Eval dry run
+        run: npm run eval:dry
+
+  # The agent must work across its whole supported range, not just on the one
+  # Node the other job happens to install. The declared floor (MIN_NODE in
+  # lib/runtime.mjs) goes first: `node:sqlite` is behind `--experimental-sqlite`
+  # before 22.13.0, so testing only the latest 22.x would hide a floor that
+  # cannot actually run the agent.
+  agent-node-matrix:
+    name: Agent on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.13.0', '22', '26']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Show runtime
+        run: node -v && npm -v
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Agent tests
         run: npm run test:agent

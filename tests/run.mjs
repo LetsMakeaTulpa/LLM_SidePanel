@@ -1,8 +1,12 @@
 // Dependency-free checks for the pure logic: splitting, templating, Keep parsing,
-// CSV/JSON import, zip reading and prompt search.
+// CSV/JSON import, zip reading, prompt search, and the unpacked extension (the
+// manifest, the CSS/JS its HTML pages load, and its ES module graph).
 // Run with: npm test
 
 import assert from 'node:assert/strict';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { splitPrompts, extractVariables, renderTemplate, searchPrompts, libraryFacets } from '../src/lib/prompts.js';
 import { parseKeepNoteHtml, importKeepJson, importKeepTakeoutZip } from '../src/lib/import/keep.js';
 import {
@@ -479,6 +483,266 @@ test('exportPromptsAsMarkdown writes headings', () => {
   const markdown = exportPromptsAsMarkdown([{ title: 'T', body: 'B', tags: ['x'] }]);
   assert.match(markdown, /^## T/);
   assert.match(markdown, /Tags: x/);
+});
+
+/* ---------- unpacked extension ---------- */
+
+const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+
+function readJson(file) {
+  return JSON.parse(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
+}
+
+// Every local file the manifest points at, from the background worker and side
+// panel to content-script CSS/JS, icon maps and web-accessible resources.
+function manifestFileRefs(manifest) {
+  const refs = [];
+  const add = (value) => {
+    if (Array.isArray(value)) value.forEach(add);
+    else if (value && typeof value === 'object') Object.values(value).forEach(add);
+    else if (typeof value === 'string' && value.trim()) refs.push(value.trim());
+  };
+
+  add(manifest.background?.service_worker);
+  add(manifest.background?.page);
+  add(manifest.background?.scripts);
+  add(manifest.side_panel?.default_path);
+  add(manifest.action?.default_popup);
+  add(manifest.action?.default_icon);
+  add(manifest.icons);
+  add(manifest.options_page);
+  add(manifest.options_ui?.page);
+  add(manifest.devtools_page);
+  add(manifest.storage?.managed_schema);
+  add(manifest.sandbox?.pages);
+  for (const entry of manifest.content_scripts ?? []) {
+    add(entry.js);
+    add(entry.css);
+  }
+  for (const entry of manifest.web_accessible_resources ?? []) add(entry.resources);
+  for (const entry of manifest.declarative_net_request?.rule_resources ?? []) add(entry.path);
+  add(Object.values(manifest.chrome_url_overrides ?? {}));
+
+  return [...new Set(refs)];
+}
+
+const SKIP_DIRS = new Set(['node_modules', '.next', '.git']);
+
+function listRepoFiles(dir = repoRoot, prefix = '') {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      return SKIP_DIRS.has(entry.name) ? [] : listRepoFiles(path.join(dir, entry.name), relative);
+    }
+    return [relative];
+  });
+}
+
+function referenceExists(ref) {
+  if (!ref.includes('*')) return existsSync(path.join(repoRoot, ref));
+  // Web-accessible resources may be globs; one match is enough.
+  const pattern = new RegExp(`^${ref.split('*').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
+  return listRepoFiles().some((file) => pattern.test(file));
+}
+
+// A manifest can name an HTML page that loads a stylesheet or script which is
+// not there; Chrome only complains when the unpacked extension is loaded. These
+// helpers resolve the <link href>, <script src> and <img src> references of
+// every manifest HTML page relative to that page, and report the missing ones.
+const NOT_A_LOCAL_FILE = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
+
+function htmlAssetRefs(html) {
+  const refs = [];
+  for (const tag of html.match(/<(?:link|script|img)\b[^>]*>/gi) ?? []) {
+    const element = /^<(link|script|img)/i.exec(tag)?.[1]?.toLowerCase();
+    const pattern = new RegExp(`\\b${element === 'link' ? 'href' : 'src'}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'i');
+    const match = pattern.exec(tag);
+    const value = match ? (match[1] ?? match[2] ?? match[3] ?? '').trim() : '';
+    if (value) refs.push(value);
+  }
+  return refs;
+}
+
+/** Repo path an HTML reference points at, or null when it is not a local file. */
+function resolveHtmlAsset(page, ref) {
+  if (!ref || NOT_A_LOCAL_FILE.test(ref)) return null;
+  const clean = ref.split('#')[0].split('?')[0].trim();
+  if (!clean) return null;
+  const base = clean.startsWith('/') ? '' : path.posix.dirname(page);
+  return path.posix.normalize(path.posix.join(base, clean.replace(/^\/+/, '')));
+}
+
+function findMissingHtmlAssets(
+  pages,
+  read = (file) => readFileSync(path.join(repoRoot, file), 'utf8'),
+  has = (file) => existsSync(path.join(repoRoot, file))
+) {
+  const missing = [];
+  let checked = 0;
+
+  for (const page of pages) {
+    for (const ref of htmlAssetRefs(read(page))) {
+      const asset = resolveHtmlAsset(page, ref);
+      if (!asset) continue;
+      checked += 1;
+      // Never look outside the repository, and never let an escaping path pass.
+      if (asset.startsWith('..')) missing.push(`${page} -> ${ref} (outside the repository)`);
+      else if (!has(asset)) missing.push(`${page} -> ${ref}`);
+    }
+  }
+
+  return { checked, missing };
+}
+
+// Every ES module the extension ships. A relative import that points at nothing,
+// or a bare specifier Chrome cannot resolve without an import map, only fails
+// when the unpacked extension is loaded, so check the graph offline.
+const RELATIVE_IMPORT = /^(?:\.{1,2}\/|\/)/;
+
+function extensionModuleFiles() {
+  return listRepoFiles().filter((file) => file === 'background.js' || /^src\/.*\.js$/.test(file));
+}
+
+/** Static imports and re-exports, plus literal dynamic `import('…')` calls. */
+function moduleSpecifiers(source) {
+  const patterns = [
+    /\bimport\s+(?:[^'"();]+?\s+from\s*)?['"]([^'"]+)['"]/g,
+    /\bexport\s+(?:\*|\{[^}]*\})\s*(?:as\s+\w+\s*)?from\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ];
+  const specs = [];
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) specs.push(match[1]);
+  }
+  return [...new Set(specs)];
+}
+
+function findModuleProblems(
+  files,
+  read = (file) => readFileSync(path.join(repoRoot, file), 'utf8'),
+  has = (file) => existsSync(path.join(repoRoot, file))
+) {
+  const problems = [];
+  const scanned = [];
+
+  for (const file of files) {
+    for (const spec of moduleSpecifiers(read(file))) {
+      scanned.push(spec);
+      if (!RELATIVE_IMPORT.test(spec)) {
+        const kind = /^[a-z][a-z0-9+.-]*:/i.test(spec) ? 'remote or non-file URL' : 'bare specifier';
+        problems.push(`${file} -> ${spec} (${kind}; a Chrome extension can only import local files)`);
+        continue;
+      }
+
+      const clean = spec.split(/[?#]/)[0];
+      const base = clean.startsWith('/') ? '' : path.posix.dirname(file);
+      const target = path.posix.normalize(path.posix.join(base, clean.replace(/^\/+/, '')));
+      if (target.startsWith('..')) problems.push(`${file} -> ${spec} (outside the repository)`);
+      else if (!has(target)) problems.push(`${file} -> ${spec} (missing ${target})`);
+    }
+  }
+
+  return { problems, scanned };
+}
+
+test('manifest.json parses and is Manifest V3', () => {
+  const manifest = readJson('manifest.json');
+  assert.equal(manifest.manifest_version, 3);
+  assert.equal(typeof manifest.name, 'string');
+  assert.ok(manifest.name.length > 0);
+});
+
+test('every file manifest.json references exists', () => {
+  const manifest = readJson('manifest.json');
+  const refs = manifestFileRefs(manifest);
+  assert.equal(typeof manifest.background?.service_worker, 'string', 'background service worker is declared');
+  assert.equal(typeof manifest.side_panel?.default_path, 'string', 'side panel HTML is declared');
+
+  const missing = refs.filter((ref) => !referenceExists(ref));
+  assert.deepEqual(missing, [], `missing from manifest.json references: ${missing.join(', ')}`);
+});
+
+test('every CSS/JS asset the manifest HTML pages load exists', () => {
+  const manifest = readJson('manifest.json');
+  const pages = manifestFileRefs(manifest).filter((ref) => /\.html?$/i.test(ref));
+  assert.ok(pages.includes('src/sidepanel/panel.html'), 'the side panel page is in the scan');
+
+  const { checked, missing } = findMissingHtmlAssets(pages);
+  assert.ok(checked >= 2, `expected the panel to load a stylesheet and a script, resolved ${checked}`);
+  assert.deepEqual(missing, [], `HTML pages load files that do not exist: ${missing.join(', ')}`);
+});
+
+test('the HTML asset scan resolves relative paths and ignores remote or inline ones', () => {
+  const html = [
+    '<link rel="stylesheet" href="panel.css" />',
+    '<script type="module" src="../lib/panel.js?v=3"></script>',
+    '<img src="/icons/panel-16.png">',
+    '<link rel="icon" href="https://example.com/favicon.ico">',
+    '<img src="data:image/png;base64,AAAA">',
+    '<a href="missing-page.html">not an asset</a>',
+    '<script src="#inline"></script>',
+  ].join('\n');
+
+  const files = new Set(['src/sidepanel/panel.css', 'src/lib/panel.js', 'icons/panel-16.png']);
+  const read = () => html;
+  const has = (file) => files.has(file);
+
+  const intact = findMissingHtmlAssets(['src/sidepanel/panel.html'], read, has);
+  assert.equal(intact.checked, 3, 'only the three local assets are resolved');
+  assert.deepEqual(intact.missing, []);
+
+  files.delete('src/lib/panel.js');
+  const broken = findMissingHtmlAssets(['src/sidepanel/panel.html'], read, has);
+  assert.deepEqual(broken.missing, ['src/sidepanel/panel.html -> ../lib/panel.js?v=3']);
+});
+
+test('every ES module import in the extension resolves to a local file', () => {
+  const files = extensionModuleFiles();
+  assert.ok(files.includes('background.js'), 'the service worker is scanned');
+  assert.ok(files.includes('src/sidepanel/panel.js'), 'the panel is scanned');
+
+  const { problems, scanned } = findModuleProblems(files);
+  assert.ok(scanned.length >= 20, `expected the extension to import its own modules, found ${scanned.length}`);
+  assert.deepEqual(problems, [], `unloadable module imports: ${problems.join(', ')}`);
+});
+
+test('the module scan resolves relative specifiers and rejects missing or bare ones', () => {
+  const entry = 'src/entry.js';
+  const source = [
+    "import { a } from './a.js';",
+    'import * as b from "../lib/b.js";',
+    "import '/src/root.js';",
+    "export { c } from './c.js';",
+    "import 'lodash';",
+    "const lazy = await import('./d.js');",
+    "import 'https://cdn.example.com/x.js';",
+  ].join('\n');
+
+  const files = new Set(['src/a.js', 'lib/b.js', 'src/root.js', 'src/c.js', 'src/d.js']);
+  const read = () => source;
+  const has = (file) => files.has(file);
+
+  const intact = findModuleProblems([entry], read, has);
+  assert.equal(intact.scanned.length, 7, 'every specifier is collected, including dynamic imports');
+  assert.deepEqual(intact.problems, [
+    'src/entry.js -> lodash (bare specifier; a Chrome extension can only import local files)',
+    'src/entry.js -> https://cdn.example.com/x.js (remote or non-file URL; a Chrome extension can only import local files)',
+  ]);
+
+  files.delete('lib/b.js');
+  files.delete('src/d.js');
+  const broken = findModuleProblems([entry], read, has);
+  assert.deepEqual(
+    broken.problems.filter((problem) => problem.includes('missing')),
+    [
+      'src/entry.js -> ../lib/b.js (missing lib/b.js)',
+      'src/entry.js -> ./d.js (missing src/d.js)',
+    ]
+  );
+});
+
+test('manifest version matches package.json', () => {
+  assert.equal(readJson('manifest.json').version, readJson('package.json').version);
 });
 
 console.log(`\n${passed} checks passed${process.exitCode ? ' (with failures)' : ''}.`);

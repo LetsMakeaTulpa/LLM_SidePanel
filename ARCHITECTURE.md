@@ -11,7 +11,7 @@ Two products in one repository, sharing one `package.json` and one README:
 1. **A Manifest V3 browser side panel** — a zero-build, dependency-free extension that talks to any LLM, reads the page you are on, and manages a large prompt library imported from Google Keep, Google Docs/Drive, files, and remote skill collections.
 2. **An evidence-first investigation agent** — a Next.js 16 application with an SSE endpoint, six retrieval tools, a SQLite cache, Wayback snapshots, and a 20-question eval harness.
 
-They are deliberately separate runtimes. The extension runs entirely inside Chrome; the agent needs Node 22.5+, a filesystem, `node:sqlite`, and outbound HTTP. The extension does not call the agent, and the agent does not serve the extension. The only coupling is the repository and the shared prompt-splitting philosophy.
+They are deliberately separate runtimes. The extension runs entirely inside Chrome; the agent needs Node 22.13+, a filesystem, `node:sqlite`, and outbound HTTP. The extension does not call the agent, and the agent does not serve the extension. The only coupling is the repository and the shared prompt-splitting philosophy.
 
 The extension is the mature half: 17 JavaScript files, a side panel, a settings drawer, a prompt library, and 38 Node checks. The agent is the newer half: 39 TypeScript files, a browser page for previewing it, 14 tests, and a build that produces one dynamic route. All of it is currently **uncommitted** on branch `freebuff/13873a24130eb422c027bead`; `README.md` is modified and the rest is untracked.
 
@@ -231,7 +231,7 @@ The loop owns the sequence and the graph; tools never touch the model, and the m
 
 ### 5.1 Why a separate runtime
 
-The agent is a Next.js 16 App Router project. It uses `node:sqlite` (Node 22.5+), a long-lived process for its semaphore, filesystem caching, outbound fetches without browser CORS constraints, and SSE. None of that maps cleanly onto an MV3 service worker or panel. It is therefore a second deliverable, documented separately in `AGENT.md`, rather than a feature of the extension.
+The agent is a Next.js 16 App Router project. It uses `node:sqlite` (Node 22.13+), a long-lived process for its semaphore, filesystem caching, outbound fetches without browser CORS constraints, and SSE. None of that maps cleanly onto an MV3 service worker or panel. It is therefore a second deliverable, documented separately in `AGENT.md`, rather than a feature of the extension.
 
 ### 5.2 Evidence contract and graph
 
@@ -350,7 +350,7 @@ Extension: open `chrome://extensions`, enable Developer mode, **Load unpacked**,
 Agent:
 
 ```bash
-npm install                 # Node 22.5+ for node:sqlite
+npm install                 # Node 22.13+ for node:sqlite
 cp .env.example .env        # FEATHERLESS_API_KEY, SEARXNG_URL, GITHUB_TOKEN
 npm run dev                 # http://localhost:3000
 npm run build && npm start

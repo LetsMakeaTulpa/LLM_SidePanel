@@ -45,13 +45,13 @@ Rough weighting: 30% extension, 30% agent, 10% imports, 10% eval, 5% docs, 5% di
 
 Passing now:
 
-- `npm test` — 38 extension checks.
+- `npm test` — 45 extension checks, including `manifest.json` (MV3, every referenced file exists, version matches `package.json`), every CSS/JS asset the manifest's HTML pages load (`panel.css`, `panel.js`), resolved relative to the page that loads it, and every ES module import in `background.js` and `src/` (relative specifiers must resolve; bare and remote ones fail).
 - `npm run check` — syntax-checks all 17 JS files.
 - `npx tsc --noEmit` — strict TypeScript passes.
-- Agent tests — 14/14 on Node 22.23.5 (12 on Node 20 because `node:sqlite` does not exist there).
+- Agent tests — 30/30 on Node 22.13.0, 22.23.5 and 26.13.1, including offline end-to-end `investigate()` runs (stubbed LLM, canned search/page/wayback responses, in-memory cache) that cover the loop, citation validation, gaps, the empty-graph branch, the key-free degradation path (evidence gathered, no answer invented) and SSE framing; on any runtime that cannot load `node:sqlite` — older than 22.13, including 22.5–22.12 and 23.0–23.3 where it needs `--experimental-sqlite` — `test:agent`, `eval` and `eval:dry` exit with the requirement before the cache loads, and that check imports the module rather than only reading `process.version`.
 - `eval/run.ts --dry-run` — 20 valid questions, 20 unique IDs.
 - `npx next build` — succeeds; `ƒ /api/investigate` route present.
-- CI — `.github/workflows/ci.yml` runs the checks above, including `next build`, on Node 22 (`.nvmrc`, `engines.node >=22.5.0`); the same commands pass locally.
+- CI — `.github/workflows/ci.yml` runs the checks above, including `next build`, on Node 22 (`.nvmrc`, `engines.node >=22.13.0`), and runs `test:agent` plus `eval:dry` on a matrix of the exact floor (22.13.0), the latest 22.x and 26 with `fail-fast: false`; the same commands pass locally.
 - Earlier live checks: SSE stream without keys produced status/plan/gaps/no-evidence result and `done`; invalid body returned 400; a real GitHub collection imported 11 prompts from 2 files through the archive fallback; zip and raw-markdown URLs parsed.
 
 Not verified:
@@ -64,7 +64,7 @@ Not verified:
 
 ## Environment caveat
 
-The default `node` on this machine is **v20.20.0**, which cannot load `node:sqlite`. The agent requires **Node 22.5+**. All agent checks above were run with `npx node@22`. Set a Node 22+ runtime before `npm run dev` or the agent tests.
+The default `node` on this machine is **v20.20.0**, which cannot load `node:sqlite`. The agent requires **Node 22.13+** (`node:sqlite` needs `--experimental-sqlite` on 22.5–22.12). All agent checks above were run with `npx node@22`. Set a Node 22+ runtime before `npm run dev` or the agent tests.
 
 ## What remains, in order
 
