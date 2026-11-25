@@ -222,7 +222,7 @@ npm run test:agent
 npm run eval:dry   # validates the 20 eval questions, no keys or network
 ```
 
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the extension checks, typecheck, `next build`, agent tests and eval dry run on Node 22 for every push to `main` and every pull request, and runs `test:agent` plus `eval:dry` on a matrix of the minimum supported Node (22.13.0), the latest 22.x and 26 so a version-specific failure cannot hide.
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the extension checks, typecheck, `next build`, agent tests and eval dry run on Node 22 for every push to `main` and every pull request, and runs `test:agent` plus `eval:dry` on a matrix of the minimum supported Node (22.13.0), the latest 22.x and 26 so a version-specific failure cannot hide. A separate job runs both commands on Node 22.12.0, where they must exit 1 with the requirement message, so the refusal path is exercised on every push rather than only by hand.
 
 Known limitations: the built-in model needs Chrome 138+ desktop hardware (elsewhere use Ollama or a free-tier key), there is no PDF text extraction, Keep notes must come through Takeout/HTML/JSON, Google Docs need a signed-in session or link sharing (or the Drive client), and only text-like Drive files can be imported.
 

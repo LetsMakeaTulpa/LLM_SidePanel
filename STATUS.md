@@ -51,7 +51,7 @@ Passing now:
 - Agent tests — 30/30 on Node 22.13.0, 22.23.5 and 26.13.1, including offline end-to-end `investigate()` runs (stubbed LLM, canned search/page/wayback responses, in-memory cache) that cover the loop, citation validation, gaps, the empty-graph branch, the key-free degradation path (evidence gathered, no answer invented) and SSE framing; on any runtime that cannot load `node:sqlite` — older than 22.13, including 22.5–22.12 and 23.0–23.3 where it needs `--experimental-sqlite` — `test:agent`, `eval` and `eval:dry` exit with the requirement before the cache loads, and that check imports the module rather than only reading `process.version`.
 - `eval/run.ts --dry-run` — 20 valid questions, 20 unique IDs.
 - `npx next build` — succeeds; `ƒ /api/investigate` route present.
-- CI — `.github/workflows/ci.yml` runs the checks above, including `next build`, on Node 22 (`.nvmrc`, `engines.node >=22.13.0`), and runs `test:agent` plus `eval:dry` on a matrix of the exact floor (22.13.0), the latest 22.x and 26 with `fail-fast: false`; the same commands pass locally.
+- CI — `.github/workflows/ci.yml` runs the checks above, including `next build`, on Node 22 (`.nvmrc`, `engines.node >=22.13.0`), and runs `test:agent` plus `eval:dry` on a matrix of the exact floor (22.13.0), the latest 22.x and 26 with `fail-fast: false`; a separate job on 22.12.0 asserts `test:agent` and `eval:dry` exit 1 with the requirement message instead of failing inside the cache; the same commands pass locally.
 - Earlier live checks: SSE stream without keys produced status/plan/gaps/no-evidence result and `done`; invalid body returned 400; a real GitHub collection imported 11 prompts from 2 files through the archive fallback; zip and raw-markdown URLs parsed.
 
 Not verified:

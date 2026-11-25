@@ -83,3 +83,55 @@ jobs:
 
       - name: Eval dry run
         run: npm run eval:dry
+
+  # The matrix above proves the agent runs across its supported range. This job
+  # proves the requirement refuses to start it: 22.12.0 loads `node:sqlite` only
+  # with `--experimental-sqlite`, so both entry points must exit 1 with the
+  # message that points at .nvmrc, instead of dying later inside the cache.
+  # Nothing is installed: the pre-check runs before any dependency or TypeScript
+  # loads, which is exactly the case it exists for.
+  agent-node-refusal:
+    name: Refusal on Node 22.12.0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22.12.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+
+      - name: Show runtime
+        run: node -v && npm -v
+
+      - name: test:agent and eval:dry refuse with the requirement
+        shell: bash
+        run: |
+          failed=0
+          check_refusal() {
+            local script="$1"
+            local out status
+            if out=$(npm run "$script" 2>&1); then
+              status=0
+            else
+              status=$?
+            fi
+            printf -- '--- npm run %s (exit %s)\n%s\n' "$script" "$status" "$out"
+            if [ "$status" -ne 1 ]; then
+              echo "::error::npm run $script exited $status on $(node -v); expected 1"
+              failed=1
+              return
+            fi
+            if ! grep -q 'needs Node 22.13.0 or newer' <<<"$out"; then
+              echo "::error::npm run $script exited 1 without the Node requirement message"
+              failed=1
+            fi
+            if ! grep -q '\.nvmrc' <<<"$out"; then
+              echo "::error::npm run $script did not point at .nvmrc"
+              failed=1
+            fi
+          }
+          check_refusal test:agent
+          check_refusal eval:dry
+          exit "$failed"
