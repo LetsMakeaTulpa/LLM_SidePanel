@@ -3,7 +3,9 @@
  * On a Node older than 22.13 the app would otherwise crash on the first
  * `node:sqlite` import with `Cannot find module 'node:sqlite'`; on 22.5–22.12 the
  * module exists but is flagged, so the check imports it rather than trusting the
- * version number.
+ * version number. The npm `dev`, `build` and `start` hooks refuse earlier, with
+ * the .nvmrc steps; this stays as the backstop for a server started some other
+ * way.
  */
 export async function register(): Promise<void> {
   // Instrumentation is also compiled for the edge runtime, where process.version

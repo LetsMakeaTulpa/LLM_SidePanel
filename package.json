@@ -18,8 +18,11 @@
     "eval": "tsx eval/run.ts",
     "preeval:dry": "node scripts/require-node.mjs",
     "eval:dry": "tsx eval/run.ts --dry-run",
+    "predev": "node scripts/require-node.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/require-node.mjs",
     "build": "next build",
+    "prestart": "node scripts/require-node.mjs",
     "start": "next start"
   },
   "dependencies": {
