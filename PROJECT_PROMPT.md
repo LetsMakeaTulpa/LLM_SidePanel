@@ -133,7 +133,8 @@ A minimal client page posts the question, parses SSE frames, and shows status, q
 - `npm test` → 38 checks pass (extension).
 - `npm run check` → all extension JS parses.
 - `npx tsc --noEmit` → pass.
-- `npx tsx --test eval/score.test.ts lib/cache/db.test.ts` → 14 pass on Node 22+.
+- `npm run test:agent` → 30 pass on Node 22.13+.
+- `npm run check:floor` → `.nvmrc`, `engines.node`, the CI workflow and the docs all state the floor in `MIN_NODE`.
 - `npx tsx eval/run.ts --dry-run` → 20 valid questions.
 - `npx next build` → succeeds with `ƒ /api/investigate`.
 - Built server answers SSE with status/plan/gaps/result/done without keys; invalid body returns 400.

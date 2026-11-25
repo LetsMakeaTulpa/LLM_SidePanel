@@ -50,18 +50,43 @@ jobs:
       - name: Eval dry run
         run: npm run eval:dry
 
+  # MIN_NODE in lib/runtime.mjs is the only place the floor is written down.
+  # This job publishes it for the jobs below, and fails if any other copy —
+  # .nvmrc, engines, the docs — disagrees with it.
+  floor:
+    name: Node floor
+    runs-on: ubuntu-latest
+    outputs:
+      min: ${{ steps.floor.outputs.min }}
+      major: ${{ steps.floor.outputs.major }}
+      below: ${{ steps.floor.outputs.below }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Every copy of the floor agrees
+        run: node scripts/node-floor.mjs --check
+
+      - name: Publish the floor
+        id: floor
+        run: |
+          echo "min=$(node scripts/node-floor.mjs)" >> "$GITHUB_OUTPUT"
+          echo "major=$(node scripts/node-floor.mjs --major)" >> "$GITHUB_OUTPUT"
+          echo "below=$(node scripts/node-floor.mjs --below)" >> "$GITHUB_OUTPUT"
+
   # The agent must work across its whole supported range, not just on the one
-  # Node the other job happens to install. The declared floor (MIN_NODE in
-  # lib/runtime.mjs) goes first: `node:sqlite` is behind `--experimental-sqlite`
-  # before 22.13.0, so testing only the latest 22.x would hide a floor that
-  # cannot actually run the agent.
+  # Node the other job happens to install. The floor comes from the job above,
+  # so bumping MIN_NODE moves this matrix with it: `node:sqlite` is behind
+  # `--experimental-sqlite` before 22.13.0, and testing only the latest 22.x
+  # would hide the floor's own version.
   agent-node-matrix:
     name: Agent on Node ${{ matrix.node }}
+    needs: floor
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.13.0', '22', '26']
+        node: ['${{ needs.floor.outputs.min }}', '${{ needs.floor.outputs.major }}', '26']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,28 +110,31 @@ jobs:
         run: npm run eval:dry
 
   # The matrix above proves the agent runs across its supported range. This job
-  # proves the requirement refuses to start it: 22.12.0 loads `node:sqlite` only
-  # with `--experimental-sqlite`, so both entry points must exit 1 with the
-  # message that points at .nvmrc, instead of dying later inside the cache.
-  # Nothing is installed: the pre-check runs before any dependency or TypeScript
-  # loads, which is exactly the case it exists for.
+  # proves the requirement refuses to start it: one release below the floor
+  # loads `node:sqlite` only with `--experimental-sqlite`, so both entry points
+  # must exit 1 with the message that points at .nvmrc, instead of dying later
+  # inside the cache. Nothing is installed: the pre-check runs before any
+  # dependency or TypeScript loads, which is exactly the case it exists for.
   agent-node-refusal:
-    name: Refusal on Node 22.12.0
+    name: Refusal on Node ${{ needs.floor.outputs.below }}
+    needs: floor
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 22.12.0
+      - name: Set up Node ${{ needs.floor.outputs.below }}
         uses: actions/setup-node@v4
         with:
-          node-version: '22.12.0'
+          node-version: ${{ needs.floor.outputs.below }}
 
       - name: Show runtime
         run: node -v && npm -v
 
       - name: test:agent and eval:dry refuse with the requirement
         shell: bash
+        env:
+          FLOOR: ${{ needs.floor.outputs.min }}
         run: |
           failed=0
           check_refusal() {
@@ -117,14 +145,14 @@ jobs:
             else
               status=$?
             fi
-            printf -- '--- npm run %s (exit %s)\n%s\n' "$script" "$status" "$out"
+            printf -- '--- npm run %s (exit %s, floor %s)\n%s\n' "$script" "$status" "$FLOOR" "$out"
             if [ "$status" -ne 1 ]; then
               echo "::error::npm run $script exited $status on $(node -v); expected 1"
               failed=1
               return
             fi
-            if ! grep -q 'needs Node 22.13.0 or newer' <<<"$out"; then
-              echo "::error::npm run $script exited 1 without the Node requirement message"
+            if ! grep -qF "needs Node $FLOOR or newer" <<<"$out"; then
+              echo "::error::npm run $script exited 1 without the Node $FLOOR requirement message"
               failed=1
             fi
             if ! grep -q '\.nvmrc' <<<"$out"; then

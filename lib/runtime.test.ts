@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { checkFloor } from '../scripts/node-floor.mjs';
 import {
   MIN_NODE,
   assertSqliteLoads,
@@ -57,12 +57,6 @@ test('assertSqliteLoads stays quiet on a supported runtime', async () => {
   await assert.doesNotReject(() => assertSqliteLoads('v22.13.0'));
 });
 
-test('.nvmrc and engines.node agree with MIN_NODE', () => {
-  const minimum = MIN_NODE.join('.');
-  const nvmrc = readFileSync(new URL('../.nvmrc', import.meta.url), 'utf8').trim();
-  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
-    engines?: { node?: string };
-  };
-  assert.equal(nvmrc, minimum);
-  assert.equal(pkg.engines?.node, `>=${minimum}`);
+test('.nvmrc, engines, CI and the docs agree with MIN_NODE', () => {
+  assert.deepEqual(checkFloor(), [], 'each message names the stale copy; fix it to match MIN_NODE');
 });

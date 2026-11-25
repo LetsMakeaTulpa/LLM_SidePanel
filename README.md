@@ -204,7 +204,7 @@ Collections you can pull from (external projects — nothing is bundled with thi
 ## Development
 
 ```bash
-npm test     # parser, splitter, zip, search and manifest checks (Node 18+, no dependencies)
+npm test     # parser, splitter, zip, search and manifest checks (no dependencies)
 npm run check # syntax-check every source file
 ```
 
@@ -215,14 +215,14 @@ After editing, reload the extension on `chrome://extensions` and reopen the pane
 The agent in `app/`, `lib/` and `eval/` is a Next.js app and requires **Node 22.13 or newer**. It uses the built-in `node:sqlite` module, which shipped in 22.5.0 but stayed behind `--experimental-sqlite` until 22.13.0 — on 22.5–22.12 the import fails with `ERR_UNKNOWN_BUILTIN_MODULE`, and on Node 20 the module does not exist at all, so the agent tests fail with `Cannot find module 'node:sqlite'` and `npm run dev` breaks on the first cache call. The version is pinned in [`.nvmrc`](.nvmrc) and declared under `engines` in `package.json` (`npm` only warns about that field). On an older Node the server checks the requirement at startup and exits with these steps instead of failing later with `Cannot find module 'node:sqlite'`; the `test:agent`, `eval` and `eval:dry` scripts run the same check before they load the cache. That check compares the version and then imports `node:sqlite` itself, so a runtime that passes the comparison but cannot load the module (22.5–22.12, 23.0–23.3) stops there with an explanation instead of failing inside the cache.
 
 ```bash
-nvm use            # reads .nvmrc (Node 22)
+nvm use            # reads .nvmrc
 npm ci
 npm run dev        # http://localhost:3000
 npm run test:agent
 npm run eval:dry   # validates the 20 eval questions, no keys or network
 ```
 
-CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the extension checks, typecheck, `next build`, agent tests and eval dry run on Node 22 for every push to `main` and every pull request, and runs `test:agent` plus `eval:dry` on a matrix of the minimum supported Node (22.13.0), the latest 22.x and 26 so a version-specific failure cannot hide. A separate job runs both commands on Node 22.12.0, where they must exit 1 with the requirement message, so the refusal path is exercised on every push rather than only by hand.
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the extension checks, typecheck, `next build`, agent tests and eval dry run on Node 22 for every push to `main` and every pull request, and runs `test:agent` plus `eval:dry` on a matrix of the minimum supported Node (22.13.0), the latest 22.x and 26 so a version-specific failure cannot hide. A separate job runs both commands on Node 22.12.0, where they must exit 1 with the requirement message, so the refusal path is exercised on every push rather than only by hand. The matrix and that job read the floor out of `lib/runtime.mjs` instead of restating it, and `npm run check:floor` fails if `.nvmrc`, `engines.node`, the workflow or this documentation drift from it.
 
 Known limitations: the built-in model needs Chrome 138+ desktop hardware (elsewhere use Ollama or a free-tier key), there is no PDF text extraction, Keep notes must come through Takeout/HTML/JSON, Google Docs need a signed-in session or link sharing (or the Drive client), and only text-like Drive files can be imported.
 
